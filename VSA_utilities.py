@@ -112,6 +112,8 @@ def get_durs(path, usable=None, dur_dict={}):
     
     dur_dict : dict of (path, filepath, RandID, duration) tuples
     
+    description : string
+    
     Output
     ------
     durations : csv
@@ -121,16 +123,19 @@ def get_durs(path, usable=None, dur_dict={}):
     lens_usable = []
     lens_all = []
     dur_dict = {}
+    description = ""
     for fpath in os.listdir(path):
         f_path = os.path.join(path, fpath)
         if os.path.isdir(f_path):
             print("Loading directory `{0}`".format(fpath))
-            u, a, dd2 = get_durs(f_path, usable)
+            u, a, dd2, desc = get_durs(f_path, usable)
             for i in u:
                 lens_usable.append(i)
             for i in a:
                 lens_all.append(i)
             dur_dict = {**dur_dict, **dd2}
+            if len(desc):
+                description = "\n\n".join([description, desc]) if len(description) else desc
         elif f_path.endswith(".txt") or f_path.endswith(".csv") or f_path.endswith(".docx") or \
             f_path.endswith(".xlsx") or ".DS_Store" in f_path or "Thumbs.db" in f_path or ".smbdelete" in f_path:
                 continue
@@ -183,15 +188,16 @@ def get_durs(path, usable=None, dur_dict={}):
                 ).set_index('filename').to_csv(outfile)
         except:
             print("Could not save {0} as {1}".format(dur_dict, outfile))
-        description = describe_lens(lens_all, path)
+        description = "\n\n".join([description, describe_lens(lens_all, path)]) if len(description
+                      ) else describe_lens(lens_all, path)
         if('MRI' in path):
-            description = "{0}\n…\t(usable): {1}".format(description, describe_lens(lens_all, path))
+            description = "{0}\n…\t(usable): {1}".format(description, describe_lens(lens_usable, path))
         print(description)
         with open(desc_file, "w") as d_file:
             d_file.write(description)
     elif os.path.exists(outfile):
         print('rm -rf {0}'.format(outfile))
-    return(lens_usable, lens_all, dur_dict)
+    return(lens_usable, lens_all, dur_dict, description)
 
 
 def time_rounding(seconds, sig=3):
