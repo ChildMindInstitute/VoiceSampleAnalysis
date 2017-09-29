@@ -117,6 +117,7 @@ def get_durs(path, usable=None, dur_dict={}):
     durations : csv
     """
     outfile = os.path.join(path, "".join([os.path.basename(path), "_", str(date.today()), ".csv"]))
+    desc_file = "_".join([outfile, "description.txt"])
     lens_usable = []
     lens_all = []
     dur_dict = {}
@@ -131,11 +132,12 @@ def get_durs(path, usable=None, dur_dict={}):
                 lens_all.append(i)
             dur_dict = {**dur_dict, **dd2}
         elif f_path.endswith(".txt") or f_path.endswith(".csv") or f_path.endswith(".docx") or \
-            f_path.endswith(".xlsx") or ".DS_Store" in f_path or "Thumbs.db" in f_path:
+            f_path.endswith(".xlsx") or ".DS_Store" in f_path or "Thumbs.db" in f_path or ".smbdelete" in f_path:
                 continue
         else:
             randid = fpath[:7] if fpath[:7].isdigit() else os.path.basename(path)[:7]
-            randid = randid if randid.isdigit() else os.path.dirname(path)[:7]
+            randid = randid if randid.isdigit() else fpath[:6]
+            randid = randid if randid.isdigit() else os.path.dirname(fpath)[:7]
             print("… Loading {0}".format(fpath))
             try:
                 g = shlex.quote(os.path.join(path, fpath))
@@ -181,9 +183,12 @@ def get_durs(path, usable=None, dur_dict={}):
                 ).set_index('filename').to_csv(outfile)
         except:
             print("Could not save {0} as {1}".format(dur_dict, outfile))
-        print(describe_lens(lens_all, path))
+        description = describe_lens(lens_all, path)
         if('MRI' in path):
-            print('… (usable): {0}'.format(describe_lens(lens_all, path)))
+            description = "{0}\n…\t(usable): {1}".format(description, describe_lens(lens_all, path))
+        print(description)
+        with open(desc_file, "w") as d_file:
+            d_file.write(description)
     elif os.path.exists(outfile):
         print('rm -rf {0}'.format(outfile))
     return(lens_usable, lens_all, dur_dict)
