@@ -11,6 +11,32 @@ import shlex
 import subprocess
 import sys
 
+
+def archival_storages(archive_top="/Volumes/Voice Sample Data"):
+    """
+    Function to get archival directories
+    
+    Parameter
+    ---------
+    archive_top : string, optional
+        default="/Volumes/Voice Sample Data"
+    
+    Returns
+    -------
+    archival_storages : set of strings
+        directories in `archive_top` that end in a 4-digit number
+    """
+    if not os.path.exists(archive_top):
+        print("{0} does not exist or is not connected".format(archive_top))
+        return(set())
+    else:
+        return({os.path.abspath(os.path.join(archive_top, d)) for
+                   d in
+                   os.listdir(archive_top)
+                   if (d[-4:].isdigit() and os.path.isdir(os.path.join(archive_top, d)))
+               })
+
+
 def date_from_int(int_date):
     """
     Function to turn an int into a date
@@ -50,10 +76,12 @@ def describe_lens(array, array_name):
         array_stats = stats.describe(array)
         return("".join([array_name,
                     ": mean=", time_rounding(np.array(array).mean()),
-                    ", median=", time_rounding(np.median(np.array(array))),
+                    ", median=", time_rounding(np.nanmedian(np.array(array))),
                     ", n=", str(array_stats.nobs),
-                    ", min=", time_rounding(array_stats.minmax[0]),
-                    ", max=", time_rounding(array_stats.minmax[1])]))
+                    ", min=", time_rounding(np.nanmin(array)),
+                    ", max=", time_rounding(np.nanmax(array))
+                    ])
+              )
     else:
         return("[Empty array]")
     
@@ -110,7 +138,7 @@ def get_durs(path, usable=None, dur_dict={}):
     
     lens_all : list of floats
     
-    dur_dict : dict of (path, filepath, RandID, duration) tuples
+    dur_dict : dict of (path, filepath, RandID, duration) tuples with f_path keys
     
     description : string
     
@@ -126,7 +154,7 @@ def get_durs(path, usable=None, dur_dict={}):
     description = ""
     for fpath in os.listdir(path):
         f_path = os.path.join(path, fpath)
-        if os.path.isdir(f_path):
+        if (os.path.isdir(f_path) and fpath not in ["@Recycle", "Tests"]):
             print("Loading directory `{0}`".format(fpath))
             u, a, dd2, desc = get_durs(f_path, usable)
             for i in u:
@@ -137,7 +165,8 @@ def get_durs(path, usable=None, dur_dict={}):
             if len(desc):
                 description = "\n\n".join([description, desc]) if len(description) else desc
         elif f_path.endswith(".txt") or f_path.endswith(".csv") or f_path.endswith(".docx") or \
-            f_path.endswith(".xlsx") or ".DS_Store" in f_path or "Thumbs.db" in f_path or ".smbdelete" in f_path:
+            f_path.endswith(".xlsx") or ".DS_Store" in f_path or "Thumbs.db" in f_path or ".smbdelete" in f_path or \
+            fpath in ["@Recycle", "Tests"]:
                 continue
         else:
             randid = fpath[:7] if fpath[:7].isdigit() else os.path.basename(path)[:7]
