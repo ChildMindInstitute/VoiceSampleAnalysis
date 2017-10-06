@@ -62,7 +62,14 @@ def describe_lens(array, array_name):
     
     Parameters
     ----------
-    array : array of lengths in seconds
+    array : list of 3-tuples of:
+        RandID : integer
+            participant ID
+            
+        upload_date : date
+        
+        recording_len : floats, given "usable", else empty list
+           lengths in seconds
     
     array_name : string
     
@@ -72,14 +79,19 @@ def describe_lens(array, array_name):
     
     array_description : string
     """
+    concatenated = dict()
+    for r, u, l in array:
+        concatenated[r] = l if r not in concatenated else concatenated[r] + l
+    array = np.array(list(concatenated.values()))
     if len(array):
         array_stats = stats.describe(array)
         return("".join([array_name,
-                    ": mean=", time_rounding(np.array(array).mean()),
-                    ", median=", time_rounding(np.nanmedian(np.array(array))),
-                    ", n=", str(array_stats.nobs),
+                    ": mean=", time_rounding(np.nanmean(array)),
+                    ", median=", time_rounding(np.nanmedian(array)),
+                    ", n=", str(array_stats.nobs - sum(np.isnan(array))),
                     ", min=", time_rounding(np.nanmin(array)),
-                    ", max=", time_rounding(np.nanmax(array))
+                    ", max=", time_rounding(np.nanmax(array)),
+                    ", total=", time_rounding(np.nansum(array))
                     ])
               )
     else:
@@ -103,20 +115,36 @@ def dur_usable(dur, path, usable_table):
         
     Returns
     -------
-    lens_usable : list of floats, given "usable", else empty list
+    lens_usable : list of 3-tuples of:
+        RandID : integer
+            participant ID
+            
+        upload_date : date
+        
+        recording_len : floats, given "usable", else empty list
+           lengths in seconds
     
-    lens_all : list of floats
+    lens_all : list of 3-tuples of:
+        RandID : integer
+            participant ID
+            
+        upload_date : date
+        
+        recording_len : floats
+            lengths in seconds
     """
     f = os.path.basename(path)
+    RandID = int(f[:7])
+    upload_date = datetime.fromtimestamp(os.stat(path).st_birthtime)
     lens_usable = []
     lens_all = []
-    if int(f[:7]) in list(usable_table["RandID"]):
-        if (datetime.fromtimestamp(os.stat(path).st_birthtime).date() >= 
-        [v for v in usable_table[usable_table["RandID"] == int(f[:7])]["Date of recording"]][0]) or (
-        [v for v in usable_table[usable_table["RandID"] == int(f[:7])]["Date of recording"]][0] ==
+    if RandID in list(usable_table["RandID"]):
+        if (upload_date.date() >=
+        [v for v in usable_table[usable_table["RandID"] == RandID]["Date of recording"]][0]) or (
+        [v for v in usable_table[usable_table["RandID"] == RandID]["Date of recording"]][0] ==
         np.nan):
-            lens_usable.append(dur)
-    lens_all.append(dur)
+            lens_usable.append(RandID, upload_date, dur)
+    lens_all.append(RandID, upload_date, dur)
     return(lens_usable, lens_all)
 
     
@@ -127,6 +155,7 @@ def get_durs(path, usable=None, dur_dict={}):
     Parameters
     ----------
     path : string
+       top-level directory
     
     usable : DataFrame, optional
         with columns ["RandID", "Date of recording"]
@@ -134,11 +163,25 @@ def get_durs(path, usable=None, dur_dict={}):
         
     Returns
     -------
-    lens_usable : list of floats, given "usable", else empty list
+    lens_usable : list of 3-tuples of:
+        RandID : integer
+            participant ID
+            
+        upload_date : date
+        
+        recording_len : floats, given "usable", else empty list
     
-    lens_all : list of floats
+    lens_all : list of 3-tuples of:
+        RandID : integer
+            participant ID
+            
+        upload_date : date
+        
+        recording_len : floats
     
-    dur_dict : dict of (path, filepath, RandID, duration) tuples with f_path keys
+    dur_dict : dictionary with RandID keys of 
+        dictionaries with f_path keys of
+            (upload_date, duration) tuple values
     
     description : string
     
@@ -154,6 +197,7 @@ def get_durs(path, usable=None, dur_dict={}):
     description = ""
     for fpath in os.listdir(path):
         f_path = os.path.join(path, fpath)
+        upload_date = datetime.fromtimestamp(os.stat(f_path).st_birthtime)
         if (os.path.isdir(f_path) and fpath not in ["@Recycle", "Tests"]):
             print("Loading directory `{0}`".format(fpath))
             u, a, dd2, desc = get_durs(f_path, usable)
@@ -188,13 +232,15 @@ def get_durs(path, usable=None, dur_dict={}):
                                     " | grep duration="]), shell=True).decode('utf-8'))
                     ))
                 u, a = dur_usable(dur, os.path.join(path, fpath), usable)
-                dur_dict[f_path] = (path, fpath, randid, dur)
+                dur_dict[randid] = {f_path: (upload_date, dur)} if \
+                    randid not in dur_dict else \
+                    {**dur_dict[randid], f_path: (upload_date, dur)}
                 for i in u:
                     lens_usable.append(i)
                 for i in a:
                     lens_all.append(i)
             except (ValueError, TypeError):
-                lens_all.append(float(re.sub(
+                lens_all.append((randid, upload_date, float(re.sub(
                         r"\n",
                         "",
                         re.sub(
@@ -205,16 +251,25 @@ def get_durs(path, usable=None, dur_dict={}):
                                     "ffprobe -v quiet -show_entries format=duration ",
                                     g,
                                     " | grep duration="]), shell=True).decode('utf-8'))
-                )))
-                dur_dict[f_path] = (path, fpath, randid, dur)
+                ))))
+                dur_dict[randid] = {f_path: (upload_date, dur)} if \
+                    randid not in dur_dict else \
+                    {**dur_dict[randid], f_path: (upload_date, dur)}
             except:
                 print(" ".join(["Could not load", g, ":", str(sys.exc_info()[0])]))
-                dur_dict[f_path] = (path, fpath, randid, np.nan)
+                dur_dict[randid] = {f_path: (upload_date, np.nan)} if \
+                    randid not in dur_dict else \
+                    {**dur_dict[randid], f_path: (upload_date, np.nan)}
     if len(dur_dict) > 1:
         try:
-            pd.DataFrame.from_dict(dur_dict, orient='index').rename(
-                columns={0: 'directory', 1: 'filename', 2: 'RandID', 3: 'duration'}
-                ).set_index('filename').to_csv(outfile)
+            for d in dur_dict:
+                ii = pd.DataFrame.from_dict(dur_dict[d], orient='index').rename(
+                         columns={0: 'upload_date', 1: 'duration'}
+                     )
+                ii.index.name = 'filepath'
+                ii['RandID'] = str(d)
+                ii = ii[['RandID', 'upload_date', 'duration']]
+                ii.to_csv(outfile)
         except:
             print("Could not save {0} as {1}".format(dur_dict, outfile))
         description = "\n\n".join([description, describe_lens(lens_all, path)]) if len(description
