@@ -51,6 +51,9 @@ def date_from_int(int_date):
     date_date : date
     """
     try:
+        int_date = int(
+            "20{0}".format(str(int(int_date)))
+            ) if len(str(int(int_date))) == 6 else int_date
         return(date(int(str(int_date)[:4]), int(str(int_date)[4:6]), int(str(int_date)[6:8])))
     except:
         return(np.nan)
@@ -135,6 +138,7 @@ def dur_usable(dur, path, usable_table):
     """
     f = os.path.basename(path)
     RandID = int(f[:7])
+    RandID = 5178472 if RandID == 5174872 else RandID # miscoded participant
     upload_date = datetime.fromtimestamp(os.stat(path).st_birthtime)
     lens_usable = []
     lens_all = []
@@ -144,6 +148,8 @@ def dur_usable(dur, path, usable_table):
         [v for v in usable_table[usable_table["RandID"] == RandID]["Date of recording"]][0] ==
         np.nan):
             lens_usable.append(RandID, upload_date, dur)
+        else:
+            print("!!!!! {0}, {1}".format(RandID, upload_date))
     lens_all.append(RandID, upload_date, dur)
     return(lens_usable, lens_all)
 
