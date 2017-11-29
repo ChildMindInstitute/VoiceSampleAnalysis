@@ -89,12 +89,12 @@ def describe_lens(array, array_name):
     if len(array):
         array_stats = stats.describe(array)
         return("".join([array_name,
-                    ": mean=", time_rounding(np.nanmean(array)),
-                    ", median=", time_rounding(np.nanmedian(array)),
+                    ": mean≈", time_rounding(np.nanmean(array)),
+                    ", median≈", time_rounding(np.nanmedian(array)),
                     ", n=", str(array_stats.nobs - sum(np.isnan(array))),
-                    ", min=", time_rounding(np.nanmin(array)),
-                    ", max=", time_rounding(np.nanmax(array)),
-                    ", total=", time_rounding(np.nansum(array))
+                    ", min≈", time_rounding(np.nanmin(array)),
+                    ", max≈", time_rounding(np.nanmax(array)),
+                    ", total≈", time_rounding(np.nansum(array))
                     ])
               )
     else:
@@ -310,7 +310,15 @@ def time_rounding(seconds, sig=3):
     else:
         minutes = seconds/60
         if minutes < 120:
-            return ("%#.3g minutes" % minutes)
+            return ("{0} ({1}′{2}″)".format(
+                "%#.3g minutes" % minutes,
+                str(int(minutes // 1)),
+                str(int(seconds % 60))
+            ))
         else:
             hours = minutes/60
-            return ("%#.3g hours" % hours)
+            return ("{0} ({1}′{2}″)".format(
+                "%#.3g hours" % hours,
+                str(format(int(minutes // 1), ",d")),
+                str(int(seconds % 60))
+            ))
