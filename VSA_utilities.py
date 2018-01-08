@@ -147,10 +147,10 @@ def dur_usable(dur, path, usable_table):
         [v for v in usable_table[usable_table["RandID"] == RandID]["Date of recording"]][0]) or (
         [v for v in usable_table[usable_table["RandID"] == RandID]["Date of recording"]][0] ==
         np.nan):
-            lens_usable.append(RandID, upload_date, dur)
+            lens_usable.append((RandID, upload_date, dur))
         else:
             print("!!!!! {0}, {1}".format(RandID, upload_date))
-    lens_all.append(RandID, upload_date, dur)
+    lens_all.append((RandID, upload_date, dur))
     return(lens_usable, lens_all)
 
     
@@ -238,34 +238,65 @@ def get_durs(path, usable=None, dur_dict={}):
                                     " | grep duration="]), shell=True).decode('utf-8'))
                     ))
                 u, a = dur_usable(dur, os.path.join(path, fpath), usable)
-                dur_dict[randid] = {f_path: (upload_date, dur)} if \
-                    randid not in dur_dict else \
-                    {**dur_dict[randid], f_path: (upload_date, dur)}
+                dur_dict[randid] = (
+                    upload_date,
+                    dur
+                ) if randid not in dur_dict else (
+                    max(
+                        upload_date,
+                        dur_dict[randid][0]
+                    ),
+                    sum([
+                        dur,
+                        dur_dict[randid][1]
+                    ])
+                )
                 for i in u:
                     lens_usable.append(i)
                 for i in a:
                     lens_all.append(i)
             except (ValueError, TypeError):
                 lens_all.append((randid, upload_date, float(re.sub(
-                        r"\n",
+                    r"\n",
+                    "",
+                    re.sub(
+                        r"duration=",
                         "",
-                        re.sub(
-                            r"duration=",
-                            "",
-                            subprocess.check_output(
-                                "".join([
-                                    "ffprobe -v quiet -show_entries format=duration ",
-                                    g,
-                                    " | grep duration="]), shell=True).decode('utf-8'))
+                        subprocess.check_output(
+                            "".join([
+                                "ffprobe -v quiet -show_entries format=duration ",
+                                g,
+                                " | grep duration="
+                            ]),
+                            shell=True
+                        ).decode('utf-8')
+                    )
                 ))))
-                dur_dict[randid] = {f_path: (upload_date, dur)} if \
-                    randid not in dur_dict else \
-                    {**dur_dict[randid], f_path: (upload_date, dur)}
+                dur_dict[randid] = (
+                    upload_date,
+                    dur
+                ) if randid not in dur_dict else (
+                    max(
+                        upload_date,
+                        dur_dict[randid][0]
+                    ),
+                    sum([
+                        dur,
+                        dur_dict[randid][1]
+                    ])
+                )
             except:
                 print(" ".join(["Could not load", g, ":", str(sys.exc_info()[0])]))
-                dur_dict[randid] = {f_path: (upload_date, np.nan)} if \
-                    randid not in dur_dict else \
-                    {**dur_dict[randid], f_path: (upload_date, np.nan)}
+                dur_dict[randid] = (
+                    upload_date,
+                    np.nan
+                ) if randid not in dur_dict else (
+                    max(
+                        upload_date,
+                        dur_dict[randid][0]
+                    ),
+                    dur_dict[randid][1]
+                )
     if len(dur_dict) > 1:
         try:
             for d in dur_dict:
